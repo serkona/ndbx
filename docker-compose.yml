@@ -4,6 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "${APP_PORT}:${APP_PORT}"
+      - "${APP_HOST}:${APP_PORT}:${APP_PORT}"
     environment:
       - SERVER_PORT=${APP_PORT}
