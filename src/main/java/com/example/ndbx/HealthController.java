@@ -22,23 +22,25 @@ public class HealthController {
     @GetMapping("/health")
     public Map<String, String> health(HttpServletRequest request, HttpServletResponse response) {
         String sid = extractSid(request);
-        if (sid != null && sessionService.isValidSid(sid) && sessionService.sessionExists(sid)) {
+        if (!sid.isEmpty() && sessionService.sessionExists(sid)) {
             Cookie cookie = new Cookie(COOKIE_NAME, sid);
             cookie.setHttpOnly(true);
             cookie.setPath("/");
-            cookie.setMaxAge((int) sessionService.getTtlSeconds());
+            cookie.setMaxAge(sessionService.getTtlSeconds());
             response.addCookie(cookie);
         }
         return Map.of("status", "ok");
     }
 
     private String extractSid(HttpServletRequest request) {
-        if (request.getCookies() == null) return null;
+        if (request.getCookies() == null) {
+            return "";
+        }
         for (Cookie cookie : request.getCookies()) {
             if (COOKIE_NAME.equals(cookie.getName())) {
                 return cookie.getValue();
             }
         }
-        return null;
+        return "";
     }
 }

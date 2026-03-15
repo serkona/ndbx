@@ -8,34 +8,42 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 
 @Service
 public class SessionService {
 
     private static final String KEY_PREFIX = "sid:";
+    private static final String CREATED_AT = "created_at";
     private static final String UPDATED_AT = "updated_at";
     private static final int SID_BYTE_LENGTH = 16;
     private static final int SID_HEX_LENGTH = SID_BYTE_LENGTH * 2;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final StringRedisTemplate redis;
-    private final long ttlSeconds;
+    private final int ttlSeconds;
+    private final RedisScript<Long> createSessionScript;
 
     public SessionService(StringRedisTemplate redis,
-                          @Value("${app.session.ttl}") long ttlSeconds) {
+                          @Value("${app.session.ttl}") int ttlSeconds) {
         this.redis = redis;
         this.ttlSeconds = ttlSeconds;
+        this.createSessionScript = new DefaultRedisScript<>(
+            "if redis.call('HSETNX', KEYS[1], '" + CREATED_AT + "', ARGV[1]) == 1 then " +
+                        "redis.call('HSET', KEYS[1], '" + UPDATED_AT + "', ARGV[1]); " +
+                        "redis.call('EXPIRE', KEYS[1], ARGV[2]); " +
+                        "return 1; " +
+                        "else return 0; end"
+            , Long.class
+        );
     }
 
-    public long getTtlSeconds() {
+    public int getTtlSeconds() {
         return ttlSeconds;
     }
 
-    public boolean isValidSid(String sid) {
-        return sid != null
-                && sid.length() == SID_HEX_LENGTH
-                && sid.chars().allMatch(c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
-    }
 
     public boolean sessionExists(String sid) {
         return redis.hasKey(KEY_PREFIX + sid);
@@ -46,10 +54,11 @@ public class SessionService {
         for (int attempt = 0; attempt < 5; attempt++) {
             String sid = generateSid();
             String key = KEY_PREFIX + sid;
-            Boolean created = redis.opsForHash().putIfAbsent(key, "created_at", now);
-            if (created) {
-                redis.opsForHash().put(key, UPDATED_AT, now);
-                redis.expire(key, Duration.ofSeconds(ttlSeconds));
+            Long result = redis.execute(createSessionScript,
+                    Collections.singletonList(key),
+                    now,
+                    String.valueOf(ttlSeconds));
+            if (result == 1L) {
                 return sid;
             }
         }
