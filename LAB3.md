@@ -348,7 +348,7 @@ Content-Type: application/json
 
 ```sh
 # Название базы данных в MongoDB
-MONGODB_DATABSE="eventhub" # или любое другое на ваше усмотрение
+MONGODB_DATABASE="eventhub" # или любое другое на ваше усмотрение
 # Имя пользователя для аутентификации в MongoDB
 MONGODB_USER=your_mongodb_username
 # Пароль для аутентификации в MongoDB
