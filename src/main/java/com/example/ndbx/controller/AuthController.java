@@ -60,9 +60,10 @@ public class AuthController {
     @PostMapping("/auth/logout")
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
         String sid = CookieHelper.extractSid(request);
-        if (!sid.isEmpty()) {
-            sessionService.deleteSession(sid);
+        if (sid.isEmpty() || !sessionService.sessionExists(sid) || sessionService.getUserId(sid) == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        sessionService.deleteSession(sid);
         CookieHelper.clearSessionCookie(response);
         return ResponseEntity.noContent().build();
     }
