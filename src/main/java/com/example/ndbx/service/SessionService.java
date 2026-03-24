@@ -1,4 +1,4 @@
-package com.example.ndbx;
+package com.example.ndbx.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -50,6 +50,10 @@ public class SessionService {
     }
 
     public String createSession() {
+        return createSession(null);
+    }
+
+    public String createSession(String userId) {
         String now = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
         for (int attempt = 0; attempt < 5; attempt++) {
             String sid = generateSid();
@@ -59,10 +63,30 @@ public class SessionService {
                     now,
                     String.valueOf(ttlSeconds));
             if (result == 1L) {
+                if (userId != null) {
+                    redis.opsForHash().put(key, "user_id", userId);
+                }
                 return sid;
             }
         }
         throw new RuntimeException("Failed to generate unique session id");
+    }
+
+    public void bindUserToSession(String sid, String userId) {
+        String key = KEY_PREFIX + sid;
+        redis.opsForHash().put(key, "user_id", userId);
+    }
+
+    public String getUserId(String sid) {
+        if (sid == null || sid.isEmpty()) return null;
+        Object userId = redis.opsForHash().get(KEY_PREFIX + sid, "user_id");
+        return userId != null ? userId.toString() : null;
+    }
+
+    public void deleteSession(String sid) {
+        if (sid != null && !sid.isEmpty()) {
+            redis.delete(KEY_PREFIX + sid);
+        }
     }
 
     public void refreshSession(String sid) {
