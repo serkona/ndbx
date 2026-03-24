@@ -7,6 +7,6 @@ mongosh \
     db.getSiblingDB('$MONGODB_DATABASE').createUser({
       user: '$MONGODB_USER',
       pwd: '$MONGODB_PASSWORD',
-      roles: [{ role: 'readWrite', db: '$MONGODB_DATABASE' }]
+      roles: [{ role: 'dbOwner', db: '$MONGODB_DATABASE' }]
     })
   "

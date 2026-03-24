@@ -14,9 +14,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
@@ -77,7 +78,7 @@ public class EventController {
         Event.Location location = new Event.Location();
         location.setAddress(address);
         event.setLocation(location);
-        event.setCreatedAt(OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        event.setCreatedAt(Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
         event.setCreatedBy(userId);
         event.setStartedAt(startedAt);
         event.setFinishedAt(finishedAt);
