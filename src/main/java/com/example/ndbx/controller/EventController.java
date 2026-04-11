@@ -3,6 +3,7 @@ package com.example.ndbx.controller;
 import com.example.ndbx.exception.ValidationException;
 import com.example.ndbx.model.Event;
 import com.example.ndbx.service.EventService;
+import com.example.ndbx.service.ReactionService;
 import com.example.ndbx.service.SessionService;
 import com.example.ndbx.util.Constants;
 import com.example.ndbx.util.CookieHelper;
@@ -23,10 +24,12 @@ import java.util.Optional;
 public class EventController extends BaseController {
 
     private final EventService eventService;
+    private final ReactionService reactionService;
 
-    public EventController(EventService eventService, SessionService sessionService) {
+    public EventController(EventService eventService, ReactionService reactionService, SessionService sessionService) {
         super(sessionService);
         this.eventService = eventService;
+        this.reactionService = reactionService;
     }
 
     @PostMapping("/events")
@@ -50,7 +53,7 @@ public class EventController extends BaseController {
         String description = (String) body.get(Constants.FLD_DESCRIPTION);
 
         if (eventService.existsByTitle(title)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_EVENT_ALREADY_EXISTS));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(Constants.FLD_MESSAGE, "event already exists"));
         }
 
         Event event = eventService.createEvent(title, description, address, startedAt, finishedAt, userId);
@@ -101,7 +104,7 @@ public class EventController extends BaseController {
         boolean updated = eventService.updateEvent(id, userId, body);
         if (!updated) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_EVENT_NOT_FOUND_OR_NOT_ORGANIZER));
+                    .body(Map.of(Constants.FLD_MESSAGE,  "Not found. Be sure that event exists and you are the organizer"));
         }
 
         return ResponseEntity.noContent().build();
@@ -109,6 +112,7 @@ public class EventController extends BaseController {
 
     @GetMapping("/events/{id}")
     public ResponseEntity<?> getEventById(@PathVariable String id,
+                                          @RequestParam(required = false) String include,
                                           HttpServletRequest request, HttpServletResponse response) {
         String sid = CookieHelper.extractSid(request);
         refreshSessionIfExists(sid, response);
@@ -119,7 +123,10 @@ public class EventController extends BaseController {
                     .body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_NOT_FOUND));
         }
 
-        return ResponseEntity.ok(eventService.eventToMap(eventOpt.get()));
+        Event event = eventOpt.get();
+        boolean withReactions = Constants.FLD_REACTIONS.equals(include);
+        return ResponseEntity.ok(eventService.eventToMap(event,
+                withReactions ? reactionService.getReactions(event.getTitle()) : null));
     }
 
     @GetMapping("/events")
@@ -129,29 +136,30 @@ public class EventController extends BaseController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String user,
-            @RequestParam(name = "price_from", required = false) String priceFrom,
-            @RequestParam(name = "price_to", required = false) String priceTo,
-            @RequestParam(name = "date_from", required = false) String dateFrom,
-            @RequestParam(name = "date_to", required = false) String dateTo,
-            @RequestParam(defaultValue = "10") String limit,
-            @RequestParam(defaultValue = "0") String offset,
+            @RequestParam(name = Constants.PARAM_PRICE_FROM, required = false) String priceFrom,
+            @RequestParam(name = Constants.PARAM_PRICE_TO, required = false) String priceTo,
+            @RequestParam(name = Constants.PARAM_DATE_FROM, required = false) String dateFrom,
+            @RequestParam(name = Constants.PARAM_DATE_TO, required = false) String dateTo,
+            @RequestParam(defaultValue = Constants.PARAM_DEFAULT_LIMIT) String limit,
+            @RequestParam(defaultValue = Constants.PARAM_DEFAULT_OFFSET) String offset,
+            @RequestParam(required = false) String include,
             HttpServletRequest request,
             HttpServletResponse response) {
 
         String sid = CookieHelper.extractSid(request);
         refreshSessionIfExists(sid, response);
 
-        int limitInt = parseParamInt(limit, "limit");
-        int offsetInt = parseParamInt(offset, "offset");
+        int limitInt = parseParamInt(limit, Constants.PARAM_LIMIT);
+        int offsetInt = parseParamInt(offset, Constants.PARAM_OFFSET);
 
         if (category != null && !eventService.isValidCategory(category)) {
             throw new ValidationException(Constants.FLD_CATEGORY);
         }
 
-        Integer priceFromInt = parseOptionalParamInt(priceFrom, "price_from");
-        Integer priceToInt = parseOptionalParamInt(priceTo, "price_to");
-        LocalDate dateFromParsed = parseOptionalParamDate(dateFrom, "date_from");
-        LocalDate dateToParsed = parseOptionalParamDate(dateTo, "date_to");
+        Integer priceFromInt = parseOptionalParamInt(priceFrom, Constants.PARAM_PRICE_FROM);
+        Integer priceToInt = parseOptionalParamInt(priceTo, Constants.PARAM_PRICE_TO);
+        LocalDate dateFromParsed = parseOptionalParamDate(dateFrom, Constants.PARAM_DATE_FROM);
+        LocalDate dateToParsed = parseOptionalParamDate(dateTo, Constants.PARAM_DATE_TO);
 
         if (limitInt == 0) {
             return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, List.of(), Constants.FLD_COUNT, 0));
@@ -160,7 +168,10 @@ public class EventController extends BaseController {
         Page<Event> page = eventService.searchEvents(title, id, category, city, user,
                 priceFromInt, priceToInt, dateFromParsed, dateToParsed, limitInt, offsetInt);
 
-        List<Map<String, Object>> eventMaps = page.getContent().stream().map(eventService::eventToMap).toList();
+        boolean withReactions = Constants.FLD_REACTIONS.equals(include);
+        List<Map<String, Object>> eventMaps = page.getContent().stream()
+            .map(e -> eventService.eventToMap(e, withReactions ? reactionService.getReactions(e.getTitle()) : null))
+            .toList();
 
         return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, page.getTotalElements()));
     }

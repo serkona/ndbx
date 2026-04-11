@@ -3,7 +3,6 @@ package com.example.ndbx.controller;
 import com.example.ndbx.exception.ValidationException;
 import com.example.ndbx.service.SessionService;
 import com.example.ndbx.util.CookieHelper;
-
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.time.LocalDate;
@@ -12,6 +11,8 @@ import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 public abstract class BaseController {
+
+    private static final String DATE_QUERY_PATTERN = "yyyyMMdd";
 
     protected final SessionService sessionService;
 
@@ -62,7 +63,7 @@ public abstract class BaseController {
     protected LocalDate parseOptionalParamDate(String paramValue, String paramName) {
         if (paramValue == null) return null;
         try {
-            return LocalDate.parse(paramValue, DateTimeFormatter.ofPattern("yyyyMMdd"));
+            return LocalDate.parse(paramValue, DateTimeFormatter.ofPattern(DATE_QUERY_PATTERN));
         } catch (DateTimeParseException e) {
             throw new ValidationException(paramName);
         }

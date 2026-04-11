@@ -8,6 +8,7 @@ services:
     environment:
       - SERVER_PORT=${APP_PORT}
       - APP_USER_SESSION_TTL=${APP_USER_SESSION_TTL}
+      - APP_LIKE_TTL=${APP_LIKE_TTL}
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -18,11 +19,20 @@ services:
       - MONGODB_USER=${MONGODB_USER}
       - MONGODB_PASSWORD=${MONGODB_PASSWORD}
       - MONGODB_AUTH_DATABASE=${MONGODB_AUTH_DATABASE}
+      - CASSANDRA_HOSTS=${CASSANDRA_HOSTS}
+      - CASSANDRA_PORT=${CASSANDRA_PORT}
+      - CASSANDRA_USERNAME=${CASSANDRA_USERNAME}
+      - CASSANDRA_PASSWORD=${CASSANDRA_PASSWORD}
+      - CASSANDRA_KEYSPACE=${CASSANDRA_KEYSPACE}
+      - CASSANDRA_CONSISTENCY=${CASSANDRA_CONSISTENCY}
+      - CASSANDRA_LOCAL_DATACENTER=${CASSANDRA_LOCAL_DATACENTER}
     depends_on:
       redis:
         condition: service_healthy
       mongo-init:
         condition: service_completed_successfully
+      cassandra:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -124,6 +134,23 @@ services:
       - ./mongo-init.sh:/scripts/mongo-init.sh
     entrypoint: ["bash", "/scripts/mongo-init.sh"]
 
+  cassandra:
+    image: cassandra:4
+    environment:
+      - CASSANDRA_CLUSTER_NAME=EventHubCluster
+      - CASSANDRA_NATIVE_TRANSPORT_PORT=${CASSANDRA_PORT}
+    ports:
+      - "${CASSANDRA_PORT}:${CASSANDRA_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh localhost ${CASSANDRA_PORT} -e 'describe cluster' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
+
 volumes:
   configsvr1_data:
   configsvr2_data:
@@ -134,3 +161,4 @@ volumes:
   shard2_primary_data:
   shard2_secondary1_data:
   shard2_secondary2_data:
+  cassandra_data:
