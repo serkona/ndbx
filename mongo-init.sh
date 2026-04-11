@@ -65,11 +65,10 @@ sh.addShard('shard2ReplSet/shard2-primary:$MONGODB_PORT,shard2-secondary1:$MONGO
 
 echo "Creating user"
 mongosh --host mongos --port $MONGODB_PORT --eval "
-db.getSiblingDB('admin').createUser({
+db.getSiblingDB('$MONGODB_DATABASE').createUser({
   user: '$MONGODB_USER',
   pwd: '$MONGODB_PASSWORD',
   roles: [
-    { role: 'root', db: 'admin' },
     { role: 'dbOwner', db: '$MONGODB_DATABASE' }
   ]
 });
