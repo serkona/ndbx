@@ -5,8 +5,6 @@ import com.example.ndbx.model.EventReaction;
 import com.example.ndbx.model.EventReactionKey;
 import com.example.ndbx.repository.EventReactionRepository;
 import com.example.ndbx.repository.EventRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -21,8 +19,7 @@ import java.util.Map;
 
 @Service
 public class ReactionService {
-
-    private static final String REDIS_REACTIONS_KEY_FORMAT = "events:%s:reactions";
+    private static final String REDIS_REACTIONS_KEY_FORMAT = "event:%s:reactions";
     private static final String FLD_LIKES = "likes";
     private static final String FLD_DISLIKES = "dislikes";
     private static final byte LIKE_VALUE = 1;
@@ -31,20 +28,16 @@ public class ReactionService {
     private final EventReactionRepository reactionRepository;
     private final EventRepository eventRepository;
     private final StringRedisTemplate redis;
-    private final ObjectMapper objectMapper;
     private final int likeTtlSeconds;
 
     public ReactionService(
-        EventReactionRepository reactionRepository,
-        EventRepository eventRepository,
-        StringRedisTemplate redis,
-        ObjectMapper objectMapper,
-        @Value("${app.like.ttl}") int likeTtlSeconds
-    ) {
+            EventReactionRepository reactionRepository,
+            EventRepository eventRepository,
+            StringRedisTemplate redis,
+            @Value("${app.like.ttl}") int likeTtlSeconds) {
         this.reactionRepository = reactionRepository;
         this.eventRepository = eventRepository;
         this.redis = redis;
-        this.objectMapper = objectMapper;
         this.likeTtlSeconds = likeTtlSeconds;
     }
 
@@ -58,22 +51,20 @@ public class ReactionService {
 
     public Map<String, Object> getReactions(String eventTitle) {
         String cacheKey = reactionsCacheKey(eventTitle);
-        String cached = redis.opsForValue().get(cacheKey);
-        if (cached != null) {
-            try {
-                return objectMapper.readValue(cached, new TypeReference<>() {});
-            } catch (Exception ignored) {}
+        Map<String, Object> fromRedis = readHashFromRedis(cacheKey);
+        if (fromRedis != null) {
+            return fromRedis;
         }
 
         long likes = 0;
         long dislikes = 0;
 
         List<String> eventIds = eventRepository.findByTitle(eventTitle)
-            .stream().map(Event::getId).toList();
+                .stream().map(Event::getId).toList();
 
         for (String eid : eventIds) {
             List<EventReaction> reactions = reactionRepository.findByKeyEventId(eid);
-            likes    += reactions.stream().filter(r -> r.getLikeValue() == LIKE_VALUE).count();
+            likes += reactions.stream().filter(r -> r.getLikeValue() == LIKE_VALUE).count();
             dislikes += reactions.stream().filter(r -> r.getLikeValue() == DISLIKE_VALUE).count();
         }
 
@@ -82,10 +73,7 @@ public class ReactionService {
         result.put(FLD_DISLIKES, dislikes);
 
         if (likes > 0 || dislikes > 0) {
-            try {
-                redis.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result),
-                    Duration.ofSeconds(likeTtlSeconds));
-            } catch (Exception ignored) {}
+            writeHashToRedis(cacheKey, likes, dislikes);
         }
 
         return result;
@@ -98,8 +86,61 @@ public class ReactionService {
         reaction.setCreatedAt(Instant.now());
         reactionRepository.save(reaction);
         eventRepository.findById(eventId).ifPresent(event ->
-            redis.delete(reactionsCacheKey(event.getTitle()))
-        );
+                refreshRedisCacheForTitle(event.getTitle()));
+    }
+
+    private void refreshRedisCacheForTitle(String eventTitle) {
+        String cacheKey = reactionsCacheKey(eventTitle);
+        long likes = 0;
+        long dislikes = 0;
+        for (String eid : eventRepository.findByTitle(eventTitle).stream().map(Event::getId).toList()) {
+            List<EventReaction> reactions = reactionRepository.findByKeyEventId(eid);
+            likes += reactions.stream().filter(r -> r.getLikeValue() == LIKE_VALUE).count();
+            dislikes += reactions.stream().filter(r -> r.getLikeValue() == DISLIKE_VALUE).count();
+        }
+        if (likes > 0 || dislikes > 0) {
+            writeHashToRedis(cacheKey, likes, dislikes);
+        } else {
+            redis.delete(cacheKey);
+        }
+    }
+
+    private Map<String, Object> readHashFromRedis(String cacheKey) {
+        if (!redis.hasKey(cacheKey)) {
+            return null;
+        }
+        Object likesObj = redis.opsForHash().get(cacheKey, FLD_LIKES);
+        Object disObj = redis.opsForHash().get(cacheKey, FLD_DISLIKES);
+        if (likesObj == null && disObj == null) {
+            return null;
+        }
+        long likes = parseLongField(likesObj);
+        long dislikes = parseLongField(disObj);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(FLD_LIKES, likes);
+        result.put(FLD_DISLIKES, dislikes);
+        return result;
+    }
+
+    private static long parseLongField(Object v) {
+        if (v == null) {
+            return 0L;
+        }
+        if (v instanceof Number n) {
+            return n.longValue();
+        }
+        try {
+            return Long.parseLong(v.toString());
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    private void writeHashToRedis(String cacheKey, long likes, long dislikes) {
+        redis.opsForHash().putAll(cacheKey, Map.of(
+                FLD_LIKES, String.valueOf(likes),
+                FLD_DISLIKES, String.valueOf(dislikes)));
+        redis.expire(cacheKey, Duration.ofSeconds(likeTtlSeconds));
     }
 
     private String reactionsCacheKey(String eventTitle) {
