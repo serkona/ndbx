@@ -54,6 +54,14 @@ public class CassandraConfig {
                 "  PRIMARY KEY (" + Constants.PV_EVENT_ID + ", " + Constants.FLD_CREATED_BY + ")" +
                 ")"
             );
+            initSession.execute(
+                "CREATE INDEX IF NOT EXISTS ON \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REACTIONS + 
+                " (" + Constants.CASSANDRA_COL_LIKE_VALUE + ")"
+            );
+            initSession.execute(
+                "CREATE INDEX IF NOT EXISTS ON \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REACTIONS + 
+                " (" + Constants.FLD_CREATED_BY + ")"
+            );
         }
 
         return buildSessionBuilder()
