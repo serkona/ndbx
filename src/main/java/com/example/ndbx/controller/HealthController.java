@@ -11,20 +11,16 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 @RestController
-public class HealthController {
-
-    private final SessionService sessionService;
+public class HealthController extends BaseController {
 
     public HealthController(SessionService sessionService) {
-        this.sessionService = sessionService;
+        super(sessionService);
     }
 
     @GetMapping("/health")
     public Map<String, String> health(HttpServletRequest request, HttpServletResponse response) {
         String sid = CookieHelper.extractSid(request);
-        if (!sid.isEmpty() && sessionService.sessionExists(sid)) {
-            CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
-        }
+        refreshSessionIfExists(sid, response);
         return Map.of("status", "ok");
     }
 }

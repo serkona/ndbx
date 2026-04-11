@@ -1,35 +1,31 @@
 package com.example.ndbx.controller;
 
+import com.example.ndbx.exception.ValidationException;
 import com.example.ndbx.model.Event;
-import com.example.ndbx.repository.EventRepository;
+import com.example.ndbx.service.EventService;
 import com.example.ndbx.service.SessionService;
+import com.example.ndbx.util.Constants;
 import com.example.ndbx.util.CookieHelper;
-import com.example.ndbx.util.OffsetScrollRequest;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
-public class EventController {
+public class EventController extends BaseController {
 
-    private final EventRepository eventRepository;
-    private final SessionService sessionService;
+    private final EventService eventService;
 
-    public EventController(EventRepository eventRepository, SessionService sessionService) {
-        this.eventRepository = eventRepository;
-        this.sessionService = sessionService;
+    public EventController(EventService eventService, SessionService sessionService) {
+        super(sessionService);
+        this.eventService = eventService;
     }
 
     @PostMapping("/events")
@@ -44,129 +40,127 @@ public class EventController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        String title = (String) body.get("title");
-        String address = (String) body.get("address");
-        String startedAt = (String) body.get("started_at");
-        String finishedAt = (String) body.get("finished_at");
-        String description = (String) body.get("description");
+        refreshSessionIfExists(sid, response);
 
-        if (title == null || title.trim().isEmpty()) {
-            refreshSessionIfExists(sid, response);
-            return badRequest("title");
-        }
-        if (address == null || address.trim().isEmpty()) {
-            refreshSessionIfExists(sid, response);
-            return badRequest("address");
-        }
-        if (startedAt == null || !isValidDate(startedAt)) {
-            refreshSessionIfExists(sid, response);
-            return badRequest("started_at");
-        }
-        if (finishedAt == null || !isValidDate(finishedAt)) {
-            refreshSessionIfExists(sid, response);
-            return badRequest("finished_at");
+        String title = requireStringBody(body, Constants.FLD_TITLE);
+        String address = requireStringBody(body, Constants.FLD_ADDRESS);
+        String startedAt = requireDateBody(body, Constants.FLD_STARTED_AT);
+        String finishedAt = requireDateBody(body, Constants.FLD_FINISHED_AT);
+        String description = (String) body.get(Constants.FLD_DESCRIPTION);
+
+        if (eventService.existsByTitle(title)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_EVENT_ALREADY_EXISTS));
         }
 
-        if (eventRepository.existsByTitle(title)) {
-            refreshSessionIfExists(sid, response);
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "event already exists"));
+        Event event = eventService.createEvent(title, description, address, startedAt, finishedAt, userId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(Constants.FLD_ID, event.getId()));
+    }
+
+    @PatchMapping("/events/{id}")
+    public ResponseEntity<?> patchEvent(@PathVariable String id, @RequestBody Map<String, Object> body,
+                                        HttpServletRequest request, HttpServletResponse response) {
+        String sid = CookieHelper.extractSid(request);
+        if (sid.isEmpty() || !sessionService.sessionExists(sid)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        Event event = new Event();
-        event.setTitle(title);
-        event.setDescription(description);
-        Event.Location location = new Event.Location();
-        location.setAddress(address);
-        event.setLocation(location);
-        event.setCreatedAt(Instant.now().truncatedTo(ChronoUnit.SECONDS).toString());
-        event.setCreatedBy(userId);
-        event.setStartedAt(startedAt);
-        event.setFinishedAt(finishedAt);
+        String userId = sessionService.getUserId(sid);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
 
-        event = eventRepository.save(event);
+        refreshSessionIfExists(sid, response);
 
-        sessionService.refreshSession(sid);
-        CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
+        if (body.containsKey(Constants.FLD_CATEGORY)) {
+            Object catObj = body.get(Constants.FLD_CATEGORY);
+            if (!(catObj instanceof String) || !eventService.isValidCategory((String) catObj)) {
+                throw new ValidationException(Constants.FLD_CATEGORY);
+            }
+        }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", event.getId()));
+        if (body.containsKey(Constants.FLD_PRICE)) {
+            Object priceObj = body.get(Constants.FLD_PRICE);
+            if (!(priceObj instanceof Number)) {
+                throw new ValidationException(Constants.FLD_PRICE);
+            }
+            double d = ((Number) priceObj).doubleValue();
+            if (d < 0 || d != Math.floor(d)) {
+                throw new ValidationException(Constants.FLD_PRICE);
+            }
+        }
+
+        if (body.containsKey(Constants.FLD_CITY)) {
+            Object cityObj = body.get(Constants.FLD_CITY);
+            if (cityObj != null && !(cityObj instanceof String)) {
+                throw new ValidationException(Constants.FLD_CITY);
+            }
+        }
+
+        boolean updated = eventService.updateEvent(id, userId, body);
+        if (!updated) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_EVENT_NOT_FOUND_OR_NOT_ORGANIZER));
+        }
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/events/{id}")
+    public ResponseEntity<?> getEventById(@PathVariable String id,
+                                          HttpServletRequest request, HttpServletResponse response) {
+        String sid = CookieHelper.extractSid(request);
+        refreshSessionIfExists(sid, response);
+
+        Optional<Event> eventOpt = eventService.getEventById(id);
+        if (eventOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_NOT_FOUND));
+        }
+
+        return ResponseEntity.ok(eventService.eventToMap(eventOpt.get()));
     }
 
     @GetMapping("/events")
     public ResponseEntity<?> getEvents(
             @RequestParam(required = false) String title,
+            @RequestParam(required = false) String id,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String user,
+            @RequestParam(name = "price_from", required = false) String priceFrom,
+            @RequestParam(name = "price_to", required = false) String priceTo,
+            @RequestParam(name = "date_from", required = false) String dateFrom,
+            @RequestParam(name = "date_to", required = false) String dateTo,
             @RequestParam(defaultValue = "10") String limit,
             @RequestParam(defaultValue = "0") String offset,
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        int limitInt;
-        int offsetInt;
-        try {
-            limitInt = Integer.parseInt(limit);
-            if (limitInt < 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            return badRequestParameter("limit");
-        }
-
-        try {
-            offsetInt = Integer.parseInt(offset);
-            if (offsetInt < 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            return badRequestParameter("offset");
-        }
-
         String sid = CookieHelper.extractSid(request);
-        if (!sid.isEmpty() && sessionService.sessionExists(sid)) {
-            CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
+        refreshSessionIfExists(sid, response);
+
+        int limitInt = parseParamInt(limit, "limit");
+        int offsetInt = parseParamInt(offset, "offset");
+
+        if (category != null && !eventService.isValidCategory(category)) {
+            throw new ValidationException(Constants.FLD_CATEGORY);
         }
+
+        Integer priceFromInt = parseOptionalParamInt(priceFrom, "price_from");
+        Integer priceToInt = parseOptionalParamInt(priceTo, "price_to");
+        LocalDate dateFromParsed = parseOptionalParamDate(dateFrom, "date_from");
+        LocalDate dateToParsed = parseOptionalParamDate(dateTo, "date_to");
 
         if (limitInt == 0) {
-            return ResponseEntity.ok(Map.of("events", List.of(), "count", 0));
+            return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, List.of(), Constants.FLD_COUNT, 0));
         }
 
-        Pageable pageRequest = new OffsetScrollRequest(offsetInt, limitInt);
-        Page<Event> page;
-        if (title != null && !title.trim().isEmpty()) {
-            page = eventRepository.findByTitleLike(title, pageRequest);
-        } else {
-            page = eventRepository.findAll(pageRequest);
-        }
+        List<Event> events = eventService.searchEvents(title, id, category, city, user,
+                priceFromInt, priceToInt, dateFromParsed, dateToParsed, limitInt, offsetInt);
 
-        List<Map<String, Object>> events = page.getContent().stream().map(e -> Map.of(
-                "id", e.getId(),
-                "title", e.getTitle(),
-                "description", e.getDescription() != null ? e.getDescription() : "",
-                "location", Map.of("address", e.getLocation().getAddress()),
-                "created_at", e.getCreatedAt(),
-                "created_by", e.getCreatedBy(),
-                "started_at", e.getStartedAt(),
-                "finished_at", e.getFinishedAt()
-        )).toList();
+        List<Map<String, Object>> eventMaps = events.stream().map(eventService::eventToMap).toList();
 
-        return ResponseEntity.ok(Map.of("events", events, "count", events.size()));
-    }
-
-    private boolean isValidDate(String dateStr) {
-        try {
-            DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(dateStr);
-            return true;
-        } catch (DateTimeParseException e) {
-            return false;
-        }
-    }
-
-    private ResponseEntity<?> badRequest(String field) {
-        return ResponseEntity.badRequest().body(Map.of("message", "invalid \"" + field + "\" field"));
-    }
-
-    private ResponseEntity<?> badRequestParameter(String param) {
-        return ResponseEntity.badRequest().body(Map.of("message", "invalid \"" + param + "\" parameter"));
-    }
-
-    private void refreshSessionIfExists(String sid, HttpServletResponse response) {
-        if (!sid.isEmpty() && sessionService.sessionExists(sid)) {
-            sessionService.refreshSession(sid);
-            CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
-        }
+        return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, eventMaps.size()));
     }
 }

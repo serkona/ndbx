@@ -6,14 +6,12 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public class CookieHelper {
 
-    public static final String COOKIE_NAME = "X-Session-Id";
-
     public static String extractSid(HttpServletRequest request) {
         if (request.getCookies() == null) {
             return "";
         }
         for (Cookie cookie : request.getCookies()) {
-            if (COOKIE_NAME.equals(cookie.getName())) {
+            if (Constants.COOKIE_NAME.equals(cookie.getName())) {
                 return cookie.getValue();
             }
         }
@@ -21,7 +19,7 @@ public class CookieHelper {
     }
 
     public static void setSessionCookie(HttpServletResponse response, String sid, int ttlSeconds) {
-        Cookie cookie = new Cookie(COOKIE_NAME, sid);
+        Cookie cookie = new Cookie(Constants.COOKIE_NAME, sid);
         cookie.setHttpOnly(true);
         cookie.setPath("/");
         cookie.setMaxAge(ttlSeconds);
@@ -29,7 +27,7 @@ public class CookieHelper {
     }
 
     public static void clearSessionCookie(HttpServletResponse response) {
-        Cookie cookie = new Cookie(COOKIE_NAME, "");
+        Cookie cookie = new Cookie(Constants.COOKIE_NAME, "");
         cookie.setHttpOnly(true);
         cookie.setPath("/");
         cookie.setMaxAge(0);

@@ -1,5 +1,6 @@
 package com.example.ndbx.service;
 
+import com.example.ndbx.util.Constants;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -15,9 +16,6 @@ import org.springframework.data.redis.core.script.RedisScript;
 @Service
 public class SessionService {
 
-    private static final String KEY_PREFIX = "sid:";
-    private static final String CREATED_AT = "created_at";
-    private static final String UPDATED_AT = "updated_at";
     private static final int SID_BYTE_LENGTH = 16;
     private static final int SID_HEX_LENGTH = SID_BYTE_LENGTH * 2;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -31,8 +29,8 @@ public class SessionService {
         this.redis = redis;
         this.ttlSeconds = ttlSeconds;
         this.createSessionScript = new DefaultRedisScript<>(
-            "if redis.call('HSETNX', KEYS[1], '" + CREATED_AT + "', ARGV[1]) == 1 then " +
-                        "redis.call('HSET', KEYS[1], '" + UPDATED_AT + "', ARGV[1]); " +
+            "if redis.call('HSETNX', KEYS[1], '" + Constants.REDIS_FLD_CREATED_AT + "', ARGV[1]) == 1 then " +
+                        "redis.call('HSET', KEYS[1], '" + Constants.REDIS_FLD_UPDATED_AT + "', ARGV[1]); " +
                         "redis.call('EXPIRE', KEYS[1], ARGV[2]); " +
                         "return 1; " +
                         "else return 0; end"
@@ -44,9 +42,8 @@ public class SessionService {
         return ttlSeconds;
     }
 
-
     public boolean sessionExists(String sid) {
-        return redis.hasKey(KEY_PREFIX + sid);
+        return redis.hasKey(Constants.REDIS_KEY_PREFIX + sid);
     }
 
     public String createSession() {
@@ -57,14 +54,14 @@ public class SessionService {
         String now = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
         for (int attempt = 0; attempt < 5; attempt++) {
             String sid = generateSid();
-            String key = KEY_PREFIX + sid;
+            String key = Constants.REDIS_KEY_PREFIX + sid;
             Long result = redis.execute(createSessionScript,
                     Collections.singletonList(key),
                     now,
                     String.valueOf(ttlSeconds));
             if (result == 1L) {
                 if (userId != null) {
-                    redis.opsForHash().put(key, "user_id", userId);
+                    redis.opsForHash().put(key, Constants.REDIS_FLD_USER_ID, userId);
                 }
                 return sid;
             }
@@ -73,26 +70,26 @@ public class SessionService {
     }
 
     public void bindUserToSession(String sid, String userId) {
-        String key = KEY_PREFIX + sid;
-        redis.opsForHash().put(key, "user_id", userId);
+        String key = Constants.REDIS_KEY_PREFIX + sid;
+        redis.opsForHash().put(key, Constants.REDIS_FLD_USER_ID, userId);
     }
 
     public String getUserId(String sid) {
         if (sid == null || sid.isEmpty()) return null;
-        Object userId = redis.opsForHash().get(KEY_PREFIX + sid, "user_id");
+        Object userId = redis.opsForHash().get(Constants.REDIS_KEY_PREFIX + sid, Constants.REDIS_FLD_USER_ID);
         return userId != null ? userId.toString() : null;
     }
 
     public void deleteSession(String sid) {
         if (sid != null && !sid.isEmpty()) {
-            redis.delete(KEY_PREFIX + sid);
+            redis.delete(Constants.REDIS_KEY_PREFIX + sid);
         }
     }
 
     public void refreshSession(String sid) {
-        String key = KEY_PREFIX + sid;
+        String key = Constants.REDIS_KEY_PREFIX + sid;
         String now = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
-        redis.opsForHash().put(key, UPDATED_AT, now);
+        redis.opsForHash().put(key, Constants.REDIS_FLD_UPDATED_AT, now);
         redis.expire(key, Duration.ofSeconds(ttlSeconds));
     }
 

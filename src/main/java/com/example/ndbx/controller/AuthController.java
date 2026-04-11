@@ -1,8 +1,9 @@
 package com.example.ndbx.controller;
 
 import com.example.ndbx.model.User;
-import com.example.ndbx.repository.UserRepository;
 import com.example.ndbx.service.SessionService;
+import com.example.ndbx.service.UserService;
+import com.example.ndbx.util.Constants;
 import com.example.ndbx.util.CookieHelper;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,41 +19,39 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-public class AuthController {
+public class AuthController extends BaseController {
 
-    private final UserRepository userRepository;
-    private final SessionService sessionService;
+    private final UserService userService;
 
-    public AuthController(UserRepository userRepository, SessionService sessionService) {
-        this.userRepository = userRepository;
-        this.sessionService = sessionService;
+    public AuthController(UserService userService, SessionService sessionService) {
+        super(sessionService);
+        this.userService = userService;
     }
 
     @PostMapping("/auth/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletRequest request, HttpServletResponse response) {
-        String username = body.get("username");
-        String password = body.get("password");
+    public ResponseEntity<?> login(@RequestBody Map<String, ?> body, HttpServletRequest request, HttpServletResponse response) {
         String sid = CookieHelper.extractSid(request);
+        refreshSessionIfExists(sid, response);
 
-        if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
-            refreshSessionIfExists(sid, response);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "invalid credentials"));
+        Object userObj = body.get(Constants.FLD_USERNAME);
+        Object passObj = body.get(Constants.FLD_PASSWORD);
+        if (!(userObj instanceof String username) || username.trim().isEmpty() ||
+            !(passObj instanceof String password) || password.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_INVALID_CREDENTIALS));
         }
 
-        Optional<User> userOpt = userRepository.findByUsername(username);
+        Optional<User> userOpt = userService.getUserByUsername(username);
         if (userOpt.isEmpty() || !BCrypt.checkpw(password, userOpt.get().getPasswordHash())) {
-            refreshSessionIfExists(sid, response);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "invalid credentials"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_INVALID_CREDENTIALS));
         }
 
         User user = userOpt.get();
         if (!sid.isEmpty() && sessionService.sessionExists(sid)) {
-            sessionService.refreshSession(sid);
             sessionService.bindUserToSession(sid, user.getId());
         } else {
             sid = sessionService.createSession(user.getId());
+            CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
         }
-        CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
 
         return ResponseEntity.noContent().build();
     }
@@ -66,12 +65,5 @@ public class AuthController {
         sessionService.deleteSession(sid);
         CookieHelper.clearSessionCookie(response);
         return ResponseEntity.noContent().build();
-    }
-
-    private void refreshSessionIfExists(String sid, HttpServletResponse response) {
-        if (!sid.isEmpty() && sessionService.sessionExists(sid)) {
-            sessionService.refreshSession(sid);
-            CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
-        }
     }
 }

@@ -21,8 +21,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      mongodb:
-        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
 
   redis:
     image: redis:7-alpine
@@ -35,21 +35,102 @@ services:
       timeout: ${REDIS_HEALTHCHECK_TIMEOUT}
       retries: ${REDIS_HEALTHCHECK_RETRIES}
 
-  mongodb:
+
+  configsvr1:
     image: mongo:6
+    command: mongod --configsvr --replSet configReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - configsvr1_data:/data/db
+
+  configsvr2:
+    image: mongo:6
+    command: mongod --configsvr --replSet configReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - configsvr2_data:/data/db
+
+  configsvr3:
+    image: mongo:6
+    command: mongod --configsvr --replSet configReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - configsvr3_data:/data/db
+
+
+  shard1-primary:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard1ReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - shard1_primary_data:/data/db
+
+  shard1-secondary1:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard1ReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - shard1_secondary1_data:/data/db
+
+  shard1-secondary2:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard1ReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - shard1_secondary2_data:/data/db
+
+
+  shard2-primary:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard2ReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - shard2_primary_data:/data/db
+
+  shard2-secondary1:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard2ReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - shard2_secondary1_data:/data/db
+
+  shard2-secondary2:
+    image: mongo:6
+    command: mongod --shardsvr --replSet shard2ReplSet --port ${MONGODB_PORT} --bind_ip_all
+    volumes:
+      - shard2_secondary2_data:/data/db
+
+
+  mongos:
+    image: mongo:6
+    command: mongos --configdb configReplSet/configsvr1:${MONGODB_PORT},configsvr2:${MONGODB_PORT},configsvr3:${MONGODB_PORT} --port ${MONGODB_PORT} --bind_ip_all
+    ports:
+      - "${MONGODB_PORT}:${MONGODB_PORT}"
+    depends_on:
+      - configsvr1
+      - configsvr2
+      - configsvr3
+      - shard1-primary
+      - shard1-secondary1
+      - shard1-secondary2
+      - shard2-primary
+      - shard2-secondary1
+      - shard2-secondary2
+
+
+  mongo-init:
+    image: mongo:6
+    depends_on:
+      - mongos
+    restart: "no"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
-      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE}
       MONGODB_DATABASE: ${MONGODB_DATABASE}
       MONGODB_USER: ${MONGODB_USER}
       MONGODB_PASSWORD: ${MONGODB_PASSWORD}
+      MONGODB_PORT: ${MONGODB_PORT}
     volumes:
-      - ./mongo-init.sh:/docker-entrypoint-initdb.d/mongo-init.sh
-    ports:
-      - "${MONGODB_PORT}:27017"
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      - ./mongo-init.sh:/scripts/mongo-init.sh
+    entrypoint: ["bash", "/scripts/mongo-init.sh"]
+
+volumes:
+  configsvr1_data:
+  configsvr2_data:
+  configsvr3_data:
+  shard1_primary_data:
+  shard1_secondary1_data:
+  shard1_secondary2_data:
+  shard2_primary_data:
+  shard2_secondary1_data:
+  shard2_secondary2_data:

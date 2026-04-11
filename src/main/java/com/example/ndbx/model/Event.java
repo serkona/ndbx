@@ -18,6 +18,10 @@ public class Event {
 
     private String description;
 
+    private String category;
+
+    private Integer price;
+
     private Location location;
 
     @Field("created_at")
@@ -34,8 +38,11 @@ public class Event {
     private String finishedAt;
 
     public static class Location {
+        private String city;
         private String address;
 
+        public String getCity() { return city; }
+        public void setCity(String city) { this.city = city; }
         public String getAddress() { return address; }
         public void setAddress(String address) { this.address = address; }
     }
@@ -48,6 +55,12 @@ public class Event {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public Integer getPrice() { return price; }
+    public void setPrice(Integer price) { this.price = price; }
 
     public Location getLocation() { return location; }
     public void setLocation(Location location) { this.location = location; }

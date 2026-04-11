@@ -10,20 +10,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class SessionController {
-
-    private final SessionService sessionService;
+public class SessionController extends BaseController {
 
     public SessionController(SessionService sessionService) {
-        this.sessionService = sessionService;
+        super(sessionService);
     }
 
     @PostMapping("/session")
     public ResponseEntity<Void> session(HttpServletRequest request, HttpServletResponse response) {
         String sid = CookieHelper.extractSid(request);
         if (!sid.isEmpty() && sessionService.sessionExists(sid)) {
-            sessionService.refreshSession(sid);
-            CookieHelper.setSessionCookie(response, sid, sessionService.getTtlSeconds());
+            refreshSessionIfExists(sid, response);
             return ResponseEntity.ok().build();
         }
 
