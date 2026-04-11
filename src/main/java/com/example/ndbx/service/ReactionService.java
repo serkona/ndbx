@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -51,31 +50,25 @@ public class ReactionService {
 
     public Map<String, Object> getReactions(String eventTitle) {
         String cacheKey = reactionsCacheKey(eventTitle);
-        Map<String, Object> fromRedis = readHashFromRedis(cacheKey);
-        if (fromRedis != null) {
-            return fromRedis;
-        }
-
         long likes = 0;
         long dislikes = 0;
-
-        List<String> eventIds = eventRepository.findByTitle(eventTitle)
-                .stream().map(Event::getId).toList();
-
-        for (String eid : eventIds) {
-            List<EventReaction> reactions = reactionRepository.findByKeyEventId(eid);
-            likes += reactions.stream().filter(r -> r.getLikeValue() == LIKE_VALUE).count();
-            dislikes += reactions.stream().filter(r -> r.getLikeValue() == DISLIKE_VALUE).count();
+        for (String eid : eventRepository.findByTitle(eventTitle).stream().map(Event::getId).toList()) {
+            for (EventReaction r : reactionRepository.findByEventId(eid)) {
+                if (r.getLikeValue() == LIKE_VALUE) {
+                    likes++;
+                } else if (r.getLikeValue() == DISLIKE_VALUE) {
+                    dislikes++;
+                }
+            }
         }
-
         Map<String, Object> result = new LinkedHashMap<>();
         result.put(FLD_LIKES, likes);
         result.put(FLD_DISLIKES, dislikes);
-
         if (likes > 0 || dislikes > 0) {
             writeHashToRedis(cacheKey, likes, dislikes);
+        } else {
+            redis.delete(cacheKey);
         }
-
         return result;
     }
 
@@ -94,45 +87,18 @@ public class ReactionService {
         long likes = 0;
         long dislikes = 0;
         for (String eid : eventRepository.findByTitle(eventTitle).stream().map(Event::getId).toList()) {
-            List<EventReaction> reactions = reactionRepository.findByKeyEventId(eid);
-            likes += reactions.stream().filter(r -> r.getLikeValue() == LIKE_VALUE).count();
-            dislikes += reactions.stream().filter(r -> r.getLikeValue() == DISLIKE_VALUE).count();
+            for (EventReaction r : reactionRepository.findByEventId(eid)) {
+                if (r.getLikeValue() == LIKE_VALUE) {
+                    likes++;
+                } else if (r.getLikeValue() == DISLIKE_VALUE) {
+                    dislikes++;
+                }
+            }
         }
         if (likes > 0 || dislikes > 0) {
             writeHashToRedis(cacheKey, likes, dislikes);
         } else {
             redis.delete(cacheKey);
-        }
-    }
-
-    private Map<String, Object> readHashFromRedis(String cacheKey) {
-        if (!redis.hasKey(cacheKey)) {
-            return null;
-        }
-        Object likesObj = redis.opsForHash().get(cacheKey, FLD_LIKES);
-        Object disObj = redis.opsForHash().get(cacheKey, FLD_DISLIKES);
-        if (likesObj == null && disObj == null) {
-            return null;
-        }
-        long likes = parseLongField(likesObj);
-        long dislikes = parseLongField(disObj);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put(FLD_LIKES, likes);
-        result.put(FLD_DISLIKES, dislikes);
-        return result;
-    }
-
-    private static long parseLongField(Object v) {
-        if (v == null) {
-            return 0L;
-        }
-        if (v instanceof Number n) {
-            return n.longValue();
-        }
-        try {
-            return Long.parseLong(v.toString());
-        } catch (NumberFormatException e) {
-            return 0L;
         }
     }
 
