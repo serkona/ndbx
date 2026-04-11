@@ -1,5 +1,6 @@
 package com.example.ndbx.controller;
 
+import com.example.ndbx.exception.ValidationException;
 import com.example.ndbx.model.Event;
 import com.example.ndbx.model.User;
 import com.example.ndbx.service.EventService;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -108,6 +110,15 @@ public class UserController extends BaseController {
 
     @GetMapping("/users/{id}/events")
     public ResponseEntity<?> getUserEvents(@PathVariable String id,
+                                           @RequestParam(required = false) String title,
+                                           @RequestParam(required = false) String category,
+                                           @RequestParam(required = false) String city,
+                                           @RequestParam(name = "price_from", required = false) String priceFrom,
+                                           @RequestParam(name = "price_to", required = false) String priceTo,
+                                           @RequestParam(name = "date_from", required = false) String dateFrom,
+                                           @RequestParam(name = "date_to", required = false) String dateTo,
+                                           @RequestParam(defaultValue = "10") String limit,
+                                           @RequestParam(defaultValue = "0") String offset,
                                            HttpServletRequest request, HttpServletResponse response) {
         String sid = CookieHelper.extractSid(request);
         refreshSessionIfExists(sid, response);
@@ -118,9 +129,27 @@ public class UserController extends BaseController {
                     .body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_USER_NOT_FOUND));
         }
 
-        List<Event> events = eventService.getEventsByUserId(id);
-        List<Map<String, Object>> eventMaps = events.stream().map(eventService::eventToMap).toList();
+        int limitInt = parseParamInt(limit, "limit");
+        int offsetInt = parseParamInt(offset, "offset");
 
-        return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, eventMaps.size()));
+        if (category != null && !eventService.isValidCategory(category)) {
+            throw new ValidationException(Constants.FLD_CATEGORY);
+        }
+
+        Integer priceFromInt = parseOptionalParamInt(priceFrom, "price_from");
+        Integer priceToInt = parseOptionalParamInt(priceTo, "price_to");
+        LocalDate dateFromParsed = parseOptionalParamDate(dateFrom, "date_from");
+        LocalDate dateToParsed = parseOptionalParamDate(dateTo, "date_to");
+
+        if (limitInt == 0) {
+            return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, List.of(), Constants.FLD_COUNT, 0));
+        }
+
+        Page<Event> page = eventService.searchEvents(title, null, category, city, userOpt.get().getUsername(),
+                priceFromInt, priceToInt, dateFromParsed, dateToParsed, limitInt, offsetInt);
+
+        List<Map<String, Object>> eventMaps = page.getContent().stream().map(eventService::eventToMap).toList();
+
+        return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, page.getTotalElements()));
     }
 }

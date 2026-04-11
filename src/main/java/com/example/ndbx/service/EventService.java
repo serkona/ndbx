@@ -7,6 +7,9 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -86,7 +89,7 @@ public class EventService {
         return eventRepository.findByCreatedBy(userId);
     }
 
-    public List<Event> searchEvents(String title, String id, String category, String city, String user,
+    public Page<Event> searchEvents(String title, String id, String category, String city, String user,
                                     Integer priceFrom, Integer priceTo, LocalDate dateFrom, LocalDate dateTo,
                                     int limit, int offset) {
         List<Criteria> criteriaList = new ArrayList<>();
@@ -132,9 +135,12 @@ public class EventService {
         if (!criteriaList.isEmpty()) {
             query.addCriteria(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
         }
+        
+        long totalCount = mongoTemplate.count(query, Event.class);
         query.skip(offset).limit(limit);
 
-        return mongoTemplate.find(query, Event.class);
+        List<Event> events = mongoTemplate.find(query, Event.class);
+        return new PageImpl<>(events, PageRequest.of(offset / limit, limit), totalCount);
     }
 
     private String resolveUserIdByUsername(String username) {

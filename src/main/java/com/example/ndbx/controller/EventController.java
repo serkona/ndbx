@@ -9,6 +9,7 @@ import com.example.ndbx.util.CookieHelper;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -156,11 +157,11 @@ public class EventController extends BaseController {
             return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, List.of(), Constants.FLD_COUNT, 0));
         }
 
-        List<Event> events = eventService.searchEvents(title, id, category, city, user,
+        Page<Event> page = eventService.searchEvents(title, id, category, city, user,
                 priceFromInt, priceToInt, dateFromParsed, dateToParsed, limitInt, offsetInt);
 
-        List<Map<String, Object>> eventMaps = events.stream().map(eventService::eventToMap).toList();
+        List<Map<String, Object>> eventMaps = page.getContent().stream().map(eventService::eventToMap).toList();
 
-        return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, eventMaps.size()));
+        return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, page.getTotalElements()));
     }
 }
