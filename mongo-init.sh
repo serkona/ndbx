@@ -17,7 +17,7 @@ rs.initiate({
     { _id: 2, host: 'configsvr3:$MONGODB_PORT' }
   ]
 })
-"
+" || true
 sleep 5
 
 echo "Waiting for shards..."
@@ -38,7 +38,7 @@ rs.initiate({
     { _id: 2, host: 'shard1-secondary2:$MONGODB_PORT' }
   ]
 })
-"
+" || true
 
 echo "Init shard 2"
 mongosh --host shard2-primary --port $MONGODB_PORT --eval "
@@ -50,7 +50,7 @@ rs.initiate({
     { _id: 2, host: 'shard2-secondary2:$MONGODB_PORT' }
   ]
 })
-"
+" || true
 
 sleep 10
 
@@ -61,7 +61,7 @@ echo "Adding shards"
 mongosh --host mongos --port $MONGODB_PORT --eval "
 sh.addShard('shard1ReplSet/shard1-primary:$MONGODB_PORT,shard1-secondary1:$MONGODB_PORT,shard1-secondary2:$MONGODB_PORT');
 sh.addShard('shard2ReplSet/shard2-primary:$MONGODB_PORT,shard2-secondary1:$MONGODB_PORT,shard2-secondary2:$MONGODB_PORT');
-"
+" || true
 
 echo "Creating user"
 mongosh --host mongos --port $MONGODB_PORT --eval "
@@ -72,17 +72,17 @@ db.getSiblingDB('$MONGODB_DATABASE').createUser({
     { role: 'dbOwner', db: '$MONGODB_DATABASE' }
   ]
 });
-"
+" || true
 
 echo "Enabling sharding"
 mongosh --host mongos --port $MONGODB_PORT --eval "
 sh.enableSharding('$MONGODB_DATABASE');
-"
+" || true
 
 echo "Sharding events collection"
 mongosh --host mongos --port $MONGODB_PORT --eval "
 db.getSiblingDB('$MONGODB_DATABASE').events.createIndex({ created_by: 'hashed' });
 sh.shardCollection('$MONGODB_DATABASE.events', { created_by: 'hashed' });
-"
+" || true
 
 echo "Done!"

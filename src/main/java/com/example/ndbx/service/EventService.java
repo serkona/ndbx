@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -19,17 +20,25 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class EventService {
-    private static final Set<String> VALID_CATEGORIES = Set.of("meetup", "concert", "exhibition", "party", "other");
 
     private final EventRepository eventRepository;
     private final MongoTemplate mongoTemplate;
+    private final Set<String> validCategories;
 
-    public EventService(EventRepository eventRepository, MongoTemplate mongoTemplate) {
+    public EventService(
+            EventRepository eventRepository,
+            MongoTemplate mongoTemplate,
+            @Value("${app.event.categories}") String categoriesCsv) {
         this.eventRepository = eventRepository;
         this.mongoTemplate = mongoTemplate;
+        this.validCategories = Arrays.stream(categoriesCsv.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     public boolean existsByTitle(String title) {
@@ -51,7 +60,7 @@ public class EventService {
     }
 
     public boolean isValidCategory(String category) {
-        return VALID_CATEGORIES.contains(category);
+        return validCategories.contains(category);
     }
 
     public boolean updateEvent(String id, String userId, Map<String, Object> body) {
@@ -150,6 +159,10 @@ public class EventService {
     }
 
     public Map<String, Object> eventToMap(Event e) {
+        return eventToMap(e, null);
+    }
+
+    public Map<String, Object> eventToMap(Event e, Map<String, Object> reactions) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(Constants.FLD_ID, e.getId());
         map.put(Constants.FLD_TITLE, e.getTitle());
@@ -175,6 +188,9 @@ public class EventService {
         map.put(Constants.FLD_CREATED_BY, e.getCreatedBy());
         map.put(Constants.FLD_STARTED_AT, e.getStartedAt());
         map.put(Constants.FLD_FINISHED_AT, e.getFinishedAt());
+        if (reactions != null) {
+            map.put(Constants.FLD_REACTIONS, reactions);
+        }
         return map;
     }
 }
