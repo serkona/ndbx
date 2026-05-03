@@ -4,6 +4,7 @@ import com.example.ndbx.exception.ValidationException;
 import com.example.ndbx.model.Event;
 import com.example.ndbx.service.EventService;
 import com.example.ndbx.service.ReactionService;
+import com.example.ndbx.service.ReviewService;
 import com.example.ndbx.service.SessionService;
 import com.example.ndbx.util.Constants;
 import com.example.ndbx.util.CookieHelper;
@@ -19,17 +20,21 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @RestController
 public class EventController extends BaseController {
 
     private final EventService eventService;
     private final ReactionService reactionService;
+    private final ReviewService reviewService;
 
-    public EventController(EventService eventService, ReactionService reactionService, SessionService sessionService) {
+    public EventController(EventService eventService, ReactionService reactionService,
+                           ReviewService reviewService, SessionService sessionService) {
         super(sessionService);
         this.eventService = eventService;
         this.reactionService = reactionService;
+        this.reviewService = reviewService;
     }
 
     @PostMapping("/events")
@@ -124,9 +129,10 @@ public class EventController extends BaseController {
         }
 
         Event event = eventOpt.get();
-        boolean withReactions = Constants.FLD_REACTIONS.equals(include);
+        Set<String> includes = parseIncludes(include);
         return ResponseEntity.ok(eventService.eventToMap(event,
-                withReactions ? reactionService.getReactions(event.getTitle()) : null));
+                includes.contains(Constants.FLD_REACTIONS) ? reactionService.getReactions(event.getTitle()) : null,
+                includes.contains(Constants.FLD_REVIEWS) ? reviewService.getReviewsSummary(event.getTitle()) : null));
     }
 
     @GetMapping("/events")
@@ -168,9 +174,11 @@ public class EventController extends BaseController {
         Page<Event> page = eventService.searchEvents(title, id, category, city, user,
                 priceFromInt, priceToInt, dateFromParsed, dateToParsed, limitInt, offsetInt);
 
-        boolean withReactions = Constants.FLD_REACTIONS.equals(include);
+        Set<String> includes = parseIncludes(include);
         List<Map<String, Object>> eventMaps = page.getContent().stream()
-            .map(e -> eventService.eventToMap(e, withReactions ? reactionService.getReactions(e.getTitle()) : null))
+            .map(e -> eventService.eventToMap(e,
+                    includes.contains(Constants.FLD_REACTIONS) ? reactionService.getReactions(e.getTitle()) : null,
+                    includes.contains(Constants.FLD_REVIEWS) ? reviewService.getReviewsSummary(e.getTitle()) : null))
             .toList();
 
         return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, page.getTotalElements()));

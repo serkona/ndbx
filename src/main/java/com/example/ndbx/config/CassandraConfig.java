@@ -59,8 +59,20 @@ public class CassandraConfig {
                 " (" + Constants.CASSANDRA_COL_LIKE_VALUE + ")"
             );
             initSession.execute(
-                "CREATE INDEX IF NOT EXISTS ON \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REACTIONS + 
+                "CREATE INDEX IF NOT EXISTS ON \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REACTIONS +
                 " (" + Constants.FLD_CREATED_BY + ")"
+            );
+            initSession.execute(
+                "CREATE TABLE IF NOT EXISTS \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REVIEWS + " (" +
+                "  " + Constants.PV_EVENT_ID + " text," +
+                "  " + Constants.FLD_CREATED_BY + " text," +
+                "  " + Constants.FLD_ID + " uuid," +
+                "  " + Constants.FLD_RATING + " tinyint," +
+                "  " + Constants.FLD_COMMENT + " text," +
+                "  " + Constants.FLD_CREATED_AT + " timestamp," +
+                "  " + Constants.FLD_UPDATED_AT + " timestamp," +
+                "  PRIMARY KEY (" + Constants.PV_EVENT_ID + ", " + Constants.FLD_CREATED_BY + ")" +
+                ")"
             );
         }
 

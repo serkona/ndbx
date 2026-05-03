@@ -8,7 +8,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public abstract class BaseController {
 
@@ -67,5 +70,13 @@ public abstract class BaseController {
         } catch (DateTimeParseException e) {
             throw new ValidationException(paramName);
         }
+    }
+
+    protected Set<String> parseIncludes(String include) {
+        if (include == null || include.isBlank()) return Set.of();
+        return Arrays.stream(include.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
     }
 }

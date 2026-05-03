@@ -5,6 +5,7 @@ import com.example.ndbx.model.Event;
 import com.example.ndbx.model.User;
 import com.example.ndbx.service.EventService;
 import com.example.ndbx.service.ReactionService;
+import com.example.ndbx.service.ReviewService;
 import com.example.ndbx.service.SessionService;
 import com.example.ndbx.service.UserService;
 import com.example.ndbx.util.Constants;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @RestController
 public class UserController extends BaseController {
@@ -28,13 +30,16 @@ public class UserController extends BaseController {
     private final UserService userService;
     private final EventService eventService;
     private final ReactionService reactionService;
+    private final ReviewService reviewService;
 
     public UserController(UserService userService, EventService eventService,
-                          ReactionService reactionService, SessionService sessionService) {
+                          ReactionService reactionService, ReviewService reviewService,
+                          SessionService sessionService) {
         super(sessionService);
         this.userService = userService;
         this.eventService = eventService;
         this.reactionService = reactionService;
+        this.reviewService = reviewService;
     }
 
     @PostMapping("/users")
@@ -153,9 +158,11 @@ public class UserController extends BaseController {
         Page<Event> page = eventService.searchEvents(title, null, category, city, userOpt.get().getUsername(),
                 priceFromInt, priceToInt, dateFromParsed, dateToParsed, limitInt, offsetInt);
 
-        boolean withReactions = Constants.FLD_REACTIONS.equals(include);
+        Set<String> includes = parseIncludes(include);
         List<Map<String, Object>> eventMaps = page.getContent().stream()
-            .map(e -> eventService.eventToMap(e, withReactions ? reactionService.getReactions(e.getTitle()) : null))
+            .map(e -> eventService.eventToMap(e,
+                    includes.contains(Constants.FLD_REACTIONS) ? reactionService.getReactions(e.getTitle()) : null,
+                    includes.contains(Constants.FLD_REVIEWS) ? reviewService.getReviewsSummary(e.getTitle()) : null))
             .toList();
 
         return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, page.getTotalElements()));
