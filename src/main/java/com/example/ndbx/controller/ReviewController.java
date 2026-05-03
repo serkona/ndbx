@@ -54,14 +54,14 @@ public class ReviewController extends BaseController {
                     .body(Map.of(Constants.FLD_MESSAGE, "Event not found"));
         }
 
+        refreshSessionIfExists(sid, response);
+
         String comment = requireStringBody(body, Constants.FLD_COMMENT);
         if (comment.length() > 300) {
             throw new ValidationException(Constants.FLD_COMMENT);
         }
 
         byte rating = requireRating(body);
-
-        refreshSessionIfExists(sid, response);
 
         if (reviewService.reviewExists(eventId, userId)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -117,6 +117,8 @@ public class ReviewController extends BaseController {
                     .body(Map.of(Constants.FLD_MESSAGE, "Event not found"));
         }
 
+        refreshSessionIfExists(sid, response);
+
         String comment = null;
         if (body.containsKey(Constants.FLD_COMMENT)) {
             comment = requireStringBody(body, Constants.FLD_COMMENT);
@@ -137,8 +139,6 @@ public class ReviewController extends BaseController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of(Constants.FLD_MESSAGE, "Event not found"));
         }
-
-        refreshSessionIfExists(sid, response);
 
         boolean updated = reviewService.updateReview(eventId, eventOpt.get().getTitle(), userId, parsedReviewId, comment, rating);
         if (!updated) {
