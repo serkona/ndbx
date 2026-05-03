@@ -4,6 +4,8 @@ import com.example.ndbx.exception.ValidationException;
 import com.example.ndbx.model.Event;
 import com.example.ndbx.model.User;
 import com.example.ndbx.service.EventService;
+import com.example.ndbx.service.ReactionService;
+import com.example.ndbx.service.ReviewService;
 import com.example.ndbx.service.SessionService;
 import com.example.ndbx.service.UserService;
 import com.example.ndbx.util.Constants;
@@ -20,17 +22,24 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @RestController
 public class UserController extends BaseController {
 
     private final UserService userService;
     private final EventService eventService;
+    private final ReactionService reactionService;
+    private final ReviewService reviewService;
 
-    public UserController(UserService userService, EventService eventService, SessionService sessionService) {
+    public UserController(UserService userService, EventService eventService,
+                          ReactionService reactionService, ReviewService reviewService,
+                          SessionService sessionService) {
         super(sessionService);
         this.userService = userService;
         this.eventService = eventService;
+        this.reactionService = reactionService;
+        this.reviewService = reviewService;
     }
 
     @PostMapping("/users")
@@ -43,7 +52,7 @@ public class UserController extends BaseController {
         String password = requireStringBody(body, Constants.FLD_PASSWORD);
 
         if (userService.existsByUsername(username)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_USER_ALREADY_EXISTS));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(Constants.FLD_MESSAGE, "user already exists"));
         }
 
         User user = userService.registerUser(fullName, username, password);
@@ -62,16 +71,16 @@ public class UserController extends BaseController {
     public ResponseEntity<?> getUsers(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String id,
-            @RequestParam(defaultValue = "10") String limit,
-            @RequestParam(defaultValue = "0") String offset,
+            @RequestParam(defaultValue = Constants.PARAM_DEFAULT_LIMIT) String limit,
+            @RequestParam(defaultValue = Constants.PARAM_DEFAULT_OFFSET) String offset,
             HttpServletRequest request,
             HttpServletResponse response) {
 
         String sid = CookieHelper.extractSid(request);
         refreshSessionIfExists(sid, response);
 
-        int limitInt = parseParamInt(limit, "limit");
-        int offsetInt = parseParamInt(offset, "offset");
+        int limitInt = parseParamInt(limit, Constants.PARAM_LIMIT);
+        int offsetInt = parseParamInt(offset, Constants.PARAM_OFFSET);
 
         if (limitInt == 0) {
             return ResponseEntity.ok(Map.of(Constants.FLD_USERS, List.of(), Constants.FLD_COUNT, 0));
@@ -113,12 +122,13 @@ public class UserController extends BaseController {
                                            @RequestParam(required = false) String title,
                                            @RequestParam(required = false) String category,
                                            @RequestParam(required = false) String city,
-                                           @RequestParam(name = "price_from", required = false) String priceFrom,
-                                           @RequestParam(name = "price_to", required = false) String priceTo,
-                                           @RequestParam(name = "date_from", required = false) String dateFrom,
-                                           @RequestParam(name = "date_to", required = false) String dateTo,
-                                           @RequestParam(defaultValue = "10") String limit,
-                                           @RequestParam(defaultValue = "0") String offset,
+                                           @RequestParam(name = Constants.PARAM_PRICE_FROM, required = false) String priceFrom,
+                                           @RequestParam(name = Constants.PARAM_PRICE_TO, required = false) String priceTo,
+                                           @RequestParam(name = Constants.PARAM_DATE_FROM, required = false) String dateFrom,
+                                           @RequestParam(name = Constants.PARAM_DATE_TO, required = false) String dateTo,
+                                           @RequestParam(defaultValue = Constants.PARAM_DEFAULT_LIMIT) String limit,
+                                           @RequestParam(defaultValue = Constants.PARAM_DEFAULT_OFFSET) String offset,
+                                           @RequestParam(required = false) String include,
                                            HttpServletRequest request, HttpServletResponse response) {
         String sid = CookieHelper.extractSid(request);
         refreshSessionIfExists(sid, response);
@@ -126,20 +136,20 @@ public class UserController extends BaseController {
         Optional<User> userOpt = userService.getUserById(id);
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_USER_NOT_FOUND));
+                    .body(Map.of(Constants.FLD_MESSAGE, "User not found"));
         }
 
-        int limitInt = parseParamInt(limit, "limit");
-        int offsetInt = parseParamInt(offset, "offset");
+        int limitInt = parseParamInt(limit, Constants.PARAM_LIMIT);
+        int offsetInt = parseParamInt(offset, Constants.PARAM_OFFSET);
 
         if (category != null && !eventService.isValidCategory(category)) {
             throw new ValidationException(Constants.FLD_CATEGORY);
         }
 
-        Integer priceFromInt = parseOptionalParamInt(priceFrom, "price_from");
-        Integer priceToInt = parseOptionalParamInt(priceTo, "price_to");
-        LocalDate dateFromParsed = parseOptionalParamDate(dateFrom, "date_from");
-        LocalDate dateToParsed = parseOptionalParamDate(dateTo, "date_to");
+        Integer priceFromInt = parseOptionalParamInt(priceFrom, Constants.PARAM_PRICE_FROM);
+        Integer priceToInt = parseOptionalParamInt(priceTo, Constants.PARAM_PRICE_TO);
+        LocalDate dateFromParsed = parseOptionalParamDate(dateFrom, Constants.PARAM_DATE_FROM);
+        LocalDate dateToParsed = parseOptionalParamDate(dateTo, Constants.PARAM_DATE_TO);
 
         if (limitInt == 0) {
             return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, List.of(), Constants.FLD_COUNT, 0));
@@ -148,7 +158,12 @@ public class UserController extends BaseController {
         Page<Event> page = eventService.searchEvents(title, null, category, city, userOpt.get().getUsername(),
                 priceFromInt, priceToInt, dateFromParsed, dateToParsed, limitInt, offsetInt);
 
-        List<Map<String, Object>> eventMaps = page.getContent().stream().map(eventService::eventToMap).toList();
+        Set<String> includes = parseIncludes(include);
+        List<Map<String, Object>> eventMaps = page.getContent().stream()
+            .map(e -> eventService.eventToMap(e,
+                    includes.contains(Constants.FLD_REACTIONS) ? reactionService.getReactions(e.getTitle()) : null,
+                    includes.contains(Constants.FLD_REVIEWS) ? reviewService.getReviewsSummary(e.getTitle()) : null))
+            .toList();
 
         return ResponseEntity.ok(Map.of(Constants.FLD_EVENTS, eventMaps, Constants.FLD_COUNT, page.getTotalElements()));
     }
