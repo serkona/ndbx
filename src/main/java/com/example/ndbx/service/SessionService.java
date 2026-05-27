@@ -32,12 +32,12 @@ public class SessionService {
         this.redis = redis;
         this.ttlSeconds = ttlSeconds;
         this.createSessionScript = new DefaultRedisScript<>(
-            "if redis.call('HSETNX', KEYS[1], '" + REDIS_FLD_CREATED_AT + "', ARGV[1]) == 1 then " +
-                        "redis.call('HSET', KEYS[1], '" + REDIS_FLD_UPDATED_AT + "', ARGV[1]); " +
-                        "redis.call('EXPIRE', KEYS[1], ARGV[2]); " +
-                        "return 1; " +
-                        "else return 0; end"
-            , Long.class
+            ("if redis.call('HSETNX', KEYS[1], '%s', ARGV[1]) == 1 then " +
+             "redis.call('HSET', KEYS[1], '%s', ARGV[1]); " +
+             "redis.call('EXPIRE', KEYS[1], ARGV[2]); " +
+             "return 1; else return 0; end")
+                .formatted(REDIS_FLD_CREATED_AT, REDIS_FLD_UPDATED_AT),
+            Long.class
         );
     }
 

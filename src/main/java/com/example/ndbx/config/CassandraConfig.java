@@ -1,6 +1,5 @@
 package com.example.ndbx.config;
 
-import com.example.ndbx.util.Constants;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.CqlSessionBuilder;
 import com.datastax.oss.driver.api.core.config.DefaultDriverOption;
@@ -40,30 +39,6 @@ public class CassandraConfig {
 
     @Bean
     public CqlSession cassandraSession() {
-        try (CqlSession initSession = buildSessionBuilder().build()) {
-            initSession.execute(
-                "CREATE KEYSPACE IF NOT EXISTS \"" + keyspace + "\" " +
-                "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}"
-            );
-            initSession.execute(
-                "CREATE TABLE IF NOT EXISTS \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REACTIONS + " (" +
-                "  " + Constants.PV_EVENT_ID + " text," +
-                "  " + Constants.FLD_CREATED_BY + " text," +
-                "  " + Constants.CASSANDRA_COL_LIKE_VALUE + " tinyint," +
-                "  " + Constants.FLD_CREATED_AT + " timestamp," +
-                "  PRIMARY KEY (" + Constants.PV_EVENT_ID + ", " + Constants.FLD_CREATED_BY + ")" +
-                ")"
-            );
-            initSession.execute(
-                "CREATE INDEX IF NOT EXISTS ON \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REACTIONS + 
-                " (" + Constants.CASSANDRA_COL_LIKE_VALUE + ")"
-            );
-            initSession.execute(
-                "CREATE INDEX IF NOT EXISTS ON \"" + keyspace + "\"." + Constants.CASSANDRA_TABLE_EVENT_REACTIONS + 
-                " (" + Constants.FLD_CREATED_BY + ")"
-            );
-        }
-
         return buildSessionBuilder()
             .withKeyspace(keyspace)
             .withConfigLoader(
