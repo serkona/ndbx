@@ -27,21 +27,26 @@ public class ReactionService {
     private final EventReactionRepository reactionRepository;
     private final EventRepository eventRepository;
     private final StringRedisTemplate redis;
+    private final Neo4jService neo4jService;
     private final int likeTtlSeconds;
 
     public ReactionService(
             EventReactionRepository reactionRepository,
             EventRepository eventRepository,
             StringRedisTemplate redis,
+            Neo4jService neo4jService,
             @Value("${app.like.ttl}") int likeTtlSeconds) {
         this.reactionRepository = reactionRepository;
         this.eventRepository = eventRepository;
         this.redis = redis;
+        this.neo4jService = neo4jService;
         this.likeTtlSeconds = likeTtlSeconds;
     }
 
     public void setLike(String eventId, String userId) {
         saveReaction(eventId, userId, LIKE_VALUE);
+        eventRepository.findById(eventId).ifPresent(event ->
+                neo4jService.createLiked(userId, eventId, event.getTitle()));
     }
 
     public void setDislike(String eventId, String userId) {
