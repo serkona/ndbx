@@ -162,7 +162,7 @@ services:
       CASSANDRA_KEYSPACE: ${CASSANDRA_KEYSPACE}
     volumes:
       - ./cassandra-init.sh:/scripts/cassandra-init.sh
-    entrypoint: ["bash", "/scripts/cassandra-init.sh"]
+    entrypoint: ["/bin/bash", "/scripts/cassandra-init.sh"]
 
 
 volumes:
