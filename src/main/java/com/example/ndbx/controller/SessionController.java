@@ -5,6 +5,7 @@ import com.example.ndbx.util.CookieHelper;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,6 +27,6 @@ public class SessionController extends BaseController {
 
         String newSid = sessionService.createSession();
         CookieHelper.setSessionCookie(response, newSid, sessionService.getTtlSeconds());
-        return ResponseEntity.status(201).build();
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }

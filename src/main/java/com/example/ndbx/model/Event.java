@@ -1,5 +1,6 @@
 package com.example.ndbx.model;
 
+import com.example.ndbx.util.Constants;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -24,17 +25,17 @@ public class Event {
 
     private Location location;
 
-    @Field("created_at")
+    @Field(Constants.FLD_CREATED_AT)
     private String createdAt;
 
-    @Field("created_by")
+    @Field(Constants.FLD_CREATED_BY)
     @Indexed
     private String createdBy;
 
-    @Field("started_at")
+    @Field(Constants.FLD_STARTED_AT)
     private String startedAt;
 
-    @Field("finished_at")
+    @Field(Constants.FLD_FINISHED_AT)
     private String finishedAt;
 
     public static class Location {

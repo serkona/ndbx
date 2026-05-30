@@ -21,6 +21,7 @@ import java.util.Optional;
 @RestController
 public class AuthController extends BaseController {
 
+    private static final String MSG_INVALID_CREDENTIALS = "invalid credentials";
     private final UserService userService;
 
     public AuthController(UserService userService, SessionService sessionService) {
@@ -37,12 +38,12 @@ public class AuthController extends BaseController {
         Object passObj = body.get(Constants.FLD_PASSWORD);
         if (!(userObj instanceof String username) || username.trim().isEmpty() ||
             !(passObj instanceof String password) || password.trim().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_INVALID_CREDENTIALS));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(Constants.FLD_MESSAGE, MSG_INVALID_CREDENTIALS));
         }
 
         Optional<User> userOpt = userService.getUserByUsername(username);
         if (userOpt.isEmpty() || !BCrypt.checkpw(password, userOpt.get().getPasswordHash())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(Constants.FLD_MESSAGE, Constants.MSG_INVALID_CREDENTIALS));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(Constants.FLD_MESSAGE, MSG_INVALID_CREDENTIALS));
         }
 
         User user = userOpt.get();

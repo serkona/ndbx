@@ -17,4 +17,6 @@ public interface EventRepository extends MongoRepository<Event, String> {
     boolean existsByTitle(String title);
 
     List<Event> findByCreatedBy(String createdBy);
+
+    List<Event> findByTitle(String title);
 }

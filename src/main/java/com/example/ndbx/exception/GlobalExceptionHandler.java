@@ -12,6 +12,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<?> handleValidationException(ValidationException ex) {
-        return ResponseEntity.badRequest().body(Map.of(Constants.FLD_MESSAGE, String.format(Constants.MSG_INVALID_FIELD, ex.getField())));
+        return ResponseEntity.badRequest().body(Map.of(Constants.FLD_MESSAGE, String.format("invalid \"%s\" field", ex.getField())));
     }
 }
