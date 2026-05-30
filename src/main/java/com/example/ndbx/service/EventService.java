@@ -159,10 +159,14 @@ public class EventService {
     }
 
     public Map<String, Object> eventToMap(Event e) {
-        return eventToMap(e, null);
+        return eventToMap(e, null, null);
     }
 
     public Map<String, Object> eventToMap(Event e, Map<String, Object> reactions) {
+        return eventToMap(e, reactions, null);
+    }
+
+    public Map<String, Object> eventToMap(Event e, Map<String, Object> reactions, Map<String, Object> reviews) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(Constants.FLD_ID, e.getId());
         map.put(Constants.FLD_TITLE, e.getTitle());
@@ -190,6 +194,9 @@ public class EventService {
         map.put(Constants.FLD_FINISHED_AT, e.getFinishedAt());
         if (reactions != null) {
             map.put(Constants.FLD_REACTIONS, reactions);
+        }
+        if (reviews != null) {
+            map.put(Constants.FLD_REVIEWS, reviews);
         }
         return map;
     }

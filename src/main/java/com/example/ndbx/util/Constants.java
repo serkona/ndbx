@@ -27,6 +27,10 @@ public class Constants {
     public static final String FLD_USERS = "users";
     public static final String FLD_COUNT = "count";
     public static final String FLD_REACTIONS = "reactions";
+    public static final String FLD_REVIEWS = "reviews";
+    public static final String FLD_RATING = "rating";
+    public static final String FLD_COMMENT = "comment";
+    public static final String FLD_UPDATED_AT = "updated_at";
 
     public static final String PARAM_LIMIT = "limit";
     public static final String PARAM_OFFSET = "offset";
@@ -38,7 +42,9 @@ public class Constants {
     public static final String PARAM_DEFAULT_OFFSET = "0";
 
     public static final String PV_EVENT_ID = "event_id";
+    public static final String PV_REVIEW_ID = "review_id";
     public static final String CASSANDRA_TABLE_EVENT_REACTIONS = "event_reactions";
     public static final String CASSANDRA_COL_LIKE_VALUE = "like_value";
+    public static final String CASSANDRA_TABLE_EVENT_REVIEWS = "event_reviews";
     public static final String MSG_NOT_FOUND = "Not found";
 }
