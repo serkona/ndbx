@@ -17,9 +17,11 @@ import java.util.Optional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final Neo4jService neo4jService;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, Neo4jService neo4jService) {
         this.userRepository = userRepository;
+        this.neo4jService = neo4jService;
     }
 
     public boolean existsByUsername(String username) {
@@ -31,7 +33,9 @@ public class UserService {
         user.setFullName(fullName);
         user.setUsername(username);
         user.setPasswordHash(BCrypt.hashpw(password, BCrypt.gensalt()));
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        neo4jService.mergeUser(saved.getId());
+        return saved;
     }
 
     public Optional<User> getUserById(String id) {

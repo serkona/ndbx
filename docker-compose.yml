@@ -27,6 +27,10 @@ services:
       - CASSANDRA_KEYSPACE=${CASSANDRA_KEYSPACE}
       - CASSANDRA_CONSISTENCY=${CASSANDRA_CONSISTENCY}
       - CASSANDRA_LOCAL_DATACENTER=${CASSANDRA_LOCAL_DATACENTER}
+      - NEO4J_URL=${NEO4J_URL}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - APP_RECOMMENDATIONS_TTL=${APP_RECOMMENDATIONS_TTL}
     depends_on:
       redis:
         condition: service_healthy
@@ -34,6 +38,8 @@ services:
         condition: service_completed_successfully
       cassandra-init:
         condition: service_completed_successfully
+      neo4j:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -144,10 +150,10 @@ services:
       - "${CASSANDRA_PORT}:${CASSANDRA_PORT}"
     healthcheck:
       test: ["CMD-SHELL", "cqlsh localhost ${CASSANDRA_PORT} -e 'describe cluster' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      interval: ${CASSANDRA_HEALTHCHECK_INTERVAL}
+      timeout: ${CASSANDRA_HEALTHCHECK_TIMEOUT}
+      retries: ${CASSANDRA_HEALTHCHECK_RETRIES}
+      start_period: ${CASSANDRA_HEALTHCHECK_START_PERIOD}
     volumes:
       - cassandra_data:/var/lib/cassandra
 
@@ -163,7 +169,23 @@ services:
       CASSANDRA_KEYSPACE: ${CASSANDRA_KEYSPACE}
     volumes:
       - ./cassandra-init.sh:/scripts/cassandra-init.sh
-    entrypoint: ["/bin/bash", "/scripts/cassandra-init.sh"]
+    entrypoint: [ "/bin/bash", "/scripts/cassandra-init.sh" ]
+
+  neo4j:
+    image: neo4j:5
+    environment:
+      - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
+    ports:
+      - "${NEO4J_HTTP_PORT}:${NEO4J_HTTP_PORT}"
+      - "${NEO4J_BOLT_PORT}:${NEO4J_BOLT_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:${NEO4J_HTTP_PORT} || exit 1"]
+      interval: ${NEO4J_HEALTHCHECK_INTERVAL}
+      timeout: ${NEO4J_HEALTHCHECK_TIMEOUT}
+      retries: ${NEO4J_HEALTHCHECK_RETRIES}
+      start_period: ${NEO4J_HEALTHCHECK_START_PERIOD}
+    volumes:
+      - neo4j_data:/data
 
 
 volumes:
@@ -177,3 +199,4 @@ volumes:
   shard2_secondary1_data:
   shard2_secondary2_data:
   cassandra_data:
+  neo4j_data:
