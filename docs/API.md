@@ -21,30 +21,11 @@ make run
 
 | Команда | Что делает |
 | --- | --- |
-| `make help` | показывает список доступных команд |
-| `make run` / `make up` | запускает все сервисы в фоне |
+| `make run` | запускает все сервисы в фоне |
 | `make rund` | запускает сервисы с логами в текущем терминале |
-| `make rebuild` | пересоздает контейнеры и пересобирает образы |
-| `make restart` | перезапускает только контейнер приложения |
 | `make services` | показывает статус контейнеров |
-| `make logs` | показывает логи всех сервисов |
-| `make logs-app` | показывает логи приложения |
-| `make health` | вызывает `GET /health` |
-| `make build` | запускает `gradle clean build` в Docker-образе Gradle |
-| `make test` | запускает тесты в Docker-образе Gradle |
-| `make bootjar` | собирает Spring Boot jar в Docker-образе Gradle |
 | `make stop` | останавливает контейнеры |
 | `make clean` | останавливает контейнеры и удаляет volumes |
-
-Для отладки контейнеров доступны shell-команды:
-
-| Команда | Контейнер |
-| --- | --- |
-| `make shell-app` | `app` |
-| `make shell-redis` | `redis` |
-| `make shell-mongo` | `mongos` |
-| `make shell-cassandra` | `cassandra` |
-| `make shell-neo4j` | `neo4j` |
 
 Базовый адрес зависит от `APP_HOST` и `APP_PORT` из `.env.local`.
 
@@ -56,7 +37,7 @@ Postman collection:
 
 | Файл | Назначение |
 | --- | --- |
-| `EventHub.postman_collection.json` | готовая коллекция запросов для импорта в Postman |
+| `docs/api/EventHub.postman_collection.json` | готовая коллекция запросов для импорта в Postman |
 
 Основные переменные коллекции: `base_url`, `session_id`, `user_id`, `event_id`, `review_id`. Запросы регистрации, логина, создания события и создания отзыва автоматически сохраняют нужные значения в переменные коллекции.
 
